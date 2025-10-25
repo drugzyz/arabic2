@@ -43,6 +43,79 @@ def init_plugin(global_vars):
     
     print("✅ تم تهيئة بلجن الإدارة")
 
+def join_room(msg_type, jid, nick, text):
+    """الانضمام إلى غرفة عامة"""
+    if not is_owner(jid):
+        send_msg(msg_type, jid, nick, "❌ هذا الأمر متاح للمالكين فقط")
+        return
+    
+    if not text.strip():
+        send_msg(msg_type, jid, nick, "❌ يرجى إدخال اسم الغرفة: !انضمام room@conference.example.com")
+        return
+    
+    room_jid = text.strip()
+    
+    # التأكد من صيغة الغرفة
+    if not room_jid or '@' not in room_jid:
+        send_msg(msg_type, jid, nick, "❌ صيغة JID الغرفة غير صحيحة")
+        return
+    
+    try:
+        if client is None:
+            send_msg(msg_type, jid, nick, "❌ البوت غير متصل حالياً")
+            return
+        
+        # إرسال طلب حضور للانضمام إلى الغرفة
+        pres = xmpp.Presence(to=room_jid)
+        client.send(pres)
+        
+        # إضافة الغرفة إلى قاعدة البيانات للإلتحاق التلقائي مستقبلاً
+        db_execute(
+            'INSERT OR REPLACE INTO rooms (room, auto_join) VALUES (?, ?)',
+            (room_jid, 1)
+        )
+        
+        send_msg(msg_type, jid, nick, f"✅ تم إرسال طلب الانضمام إلى الغرفة: {room_jid}")
+        send_msg(msg_type, jid, nick, "⏳ جاري الانضمام... قد يستغرق بضع ثوانٍ")
+        
+    except Exception as e:
+        error_msg = f"❌ خطأ في الانضمام إلى الغرفة: {str(e)}"
+        send_msg(msg_type, jid, nick, error_msg)
+
+def leave_room(msg_type, jid, nick, text):
+    """مغادرة غرفة"""
+    if not is_owner(jid):
+        send_msg(msg_type, jid, nick, "❌ هذا الأمر متاح للمالكين فقط")
+        return
+    
+    if not text.strip():
+        # إذا لم يتم تحديد غرفة، مغادرة الغرفة الحالية
+        if '/' in jid:
+            room_jid = jid.split('/')[0]
+        else:
+            send_msg(msg_type, jid, nick, "❌ يرجى إدخال اسم الغرفة: !مغادرة room@conference.example.com")
+            return
+    else:
+        room_jid = text.strip()
+    
+    try:
+        if client is None:
+            send_msg(msg_type, jid, nick, "❌ البوت غير متصل حالياً")
+            return
+        
+        # إرسال طلب حضور بمغادرة الغرفة
+        pres = xmpp.Presence(to=room_jid, typ='unavailable')
+        client.send(pres)
+        
+        # إزالة الغرفة من قاعدة البيانات لمنع الإلتحاق التلقائي مستقبلاً
+        db_execute('DELETE FROM rooms WHERE room = ?', (room_jid,))
+        
+        send_msg(msg_type, jid, nick, f"✅ تم مغادرة الغرفة: {room_jid}")
+        
+    except Exception as e:
+        error_msg = f"❌ خطأ في مغادرة الغرفة: {str(e)}"
+        send_msg(msg_type, jid, nick, error_msg)
+
 def kick_user(msg_type, jid, nick, text):
     """طرد مستخدم من الغرفة"""
     if not text:
@@ -434,6 +507,8 @@ def execute():
         (10, 'صلاحية', set_permission, 2, 'تعيين صلاحية مستخدم - !صلاحية [jid] [مستوى]'),
         (10, 'قائمة_الغرف', list_rooms, 0, 'عرض قائمة غرف البوت'),
         (10, 'تحديث_القوائم', refresh_lists, 0, 'تحديث قوائم المستخدمين يدوياً'),
+        (8, 'انضمام', join_room, 1, 'الانضمام إلى غرفة عامة - !انضمام [room@conference.example.com]'),
+        (8, 'مغادرة', leave_room, 1, 'مغادرة غرفة - !مغادرة [room@conference.example.com]'),
         
         # أوامر إدارة الغرف (مستوى 7-8)
         (7, 'طرد', kick_user, 1, 'طرد مستخدم من الغرفة: !طرد [اسم المستخدم]'),
