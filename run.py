@@ -29,9 +29,6 @@ from acl import init_plugin, get_message_handlers, get_presence_handlers, get_iq
 # في run.py الرئيسي
 from admin import init_plugin, get_message_handlers, get_presence_handlers, get_iq_handlers, get_timer_functions
 
-# في run.py الرئيسي
-from version import init_plugin, get_message_handlers, get_presence_handlers, get_iq_handlers, get_timer_functions
-
 
 # 
     
